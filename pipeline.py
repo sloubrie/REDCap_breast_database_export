@@ -11,6 +11,7 @@ from config import (
     LESIONS_LONG_PATH,
     VALIDATION_REPORT_PATH,
     META_COLS,
+    COLUMNS_TO_DELETE,
     MAX_LESIONS,
 )
 from lesion_dictionary import describe_field
@@ -304,7 +305,13 @@ def reshape_to_lesions():
         merged = merged[cols]
 
     # ---------------------------------------------------------
-    # 11. Save final lesion-centric table
+    # 11. FINAL CLEANUP: delete unwanted columns
+    # ---------------------------------------------------------
+    cols_to_drop = [c for c in COLUMNS_TO_DELETE if c in merged.columns]
+    merged = merged.drop(columns=cols_to_drop)
+
+    # ---------------------------------------------------------
+    # 12. Save final lesion-centric table
     # ---------------------------------------------------------
     os.makedirs(os.path.dirname(LESIONS_LONG_PATH), exist_ok=True)
     merged.to_csv(LESIONS_LONG_PATH, index=False)
