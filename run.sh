@@ -2,7 +2,7 @@
 set -euo pipefail
 
 python3 -m venv .venv
-source .venv/bin/activate
+source redcap_export/bin/activate
 
 pip install --upgrade pip
 pip install -r requirements.txt
