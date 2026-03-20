@@ -19,7 +19,7 @@ def download_redcap_export():
     os.makedirs(os.path.dirname(RAW_CSV_PATH), exist_ok=True)
 
     payload = {
-        "token": REDCAP_API_TOKEN,
+        "token": REDCAP_TOKEN,
         "content": "record",
         "format": "csv",
         "type": "flat",
