@@ -8,7 +8,6 @@ LESIONS_LONG_PATH = "data/lesions_long.csv"
 VALIDATION_REPORT_PATH = "data/validation_report.txt"
 
 META_COLS = [
-    "mrn",
     "redcap_event_name",
     "redcap_data_access_group",
     "break_the_glass",
