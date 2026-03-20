@@ -3,6 +3,18 @@ import os
 REDCAP_API_URL = "https://redcap.ucsd.edu/api/"
 REDCAP_TOKEN = os.getenv("REDCAP_TOKEN")
 
+# REDCap API export payload
+REDCAP_PAYLOAD = {
+    "token": REDCAP_TOKEN,
+    "content": "record",
+    "format": "csv",
+    "type": "flat",
+    "exportDataAccessGroups": "true",
+    "rawOrLabel": "raw",
+    "rawOrLabelHeaders": "raw",
+    "exportCheckboxLabel": "false",
+}
+
 RAW_CSV_PATH = "/space/wil-syn01/1/cmig_body/RSIData/Breast/UCSD/Multiband/metadata/raw_redcap_export.csv"
 LESIONS_LONG_PATH = "/space/wil-syn01/1/cmig_body/RSIData/Breast/UCSD/Multiband/metadata/breast_database.csv"
 VALIDATION_REPORT_PATH = "/space/wil-syn01/1/cmig_body/RSIData/Breast/UCSD/Multiband/metadata/validation_report.txt"

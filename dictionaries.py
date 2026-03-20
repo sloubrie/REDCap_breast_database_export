@@ -1,3 +1,41 @@
+MR_MAP = {
+    1: "high-risk screening",
+    2: "lesion follow-up",
+    3: "recent cancer diagnosis",
+    4: "symptoms",
+    "1": "high-risk screening",
+    "2": "lesion follow-up",
+    "3": "recent cancer diagnosis",
+    "4": "symptoms",
+}
+
+TX_MAP = {
+        1: "pre-tx",
+        2: "post-tx",
+        "1": "pre-tx",
+        "2": "post-tx",
+    }
+
+LN_MAP = {
+        1: "not biopsied",
+        2: "benign",
+        3: "malignant",
+        "1": "not biopsied",
+        "2": "benign",
+        "3": "malignant",
+    }
+
+MR_FACILITY_MAP = {
+        1: "ROPCC",
+        2: "KOP",
+        3: "ACTRI",
+        4: "Other",
+        "1": "ROPCC",
+        "2": "KOP",
+        "3": "ACTRI",
+        "4": "Other",
+    }
+
 LESION_FIELD_LABELS = {
     "distance_from_nipple": "Distance from nipple",
     "position": "Lesion position",

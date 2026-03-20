@@ -7,6 +7,7 @@ import numpy as np
 from config import (
     REDCAP_API_URL,
     REDCAP_TOKEN,
+    REDCAP_PAYLOAD,
     RAW_CSV_PATH,
     LESIONS_LONG_PATH,
     VALIDATION_REPORT_PATH,
@@ -14,22 +15,19 @@ from config import (
     COLUMNS_TO_DELETE,
     MAX_LESIONS,
 )
-from lesion_dictionary import describe_field
 
+from dictionaries import (
+    describe_field, 
+    MR_MAP, 
+    TX_MAP,
+    LN_MAP,
+    MR_FACILITY_MAP,
+)
 
 def download_redcap_export():
     os.makedirs(os.path.dirname(RAW_CSV_PATH), exist_ok=True)
 
-    payload = {
-        "token": REDCAP_TOKEN,
-        "content": "record",
-        "format": "csv",
-        "type": "flat",
-        "exportDataAccessGroups": "true",
-        "rawOrLabel": "raw",
-        "rawOrLabelHeaders": "raw",
-        "exportCheckboxLabel": "false",
-    }
+    payload = REDCAP_PAYLOAD
 
     resp = requests.post(REDCAP_API_URL, data=payload)
     resp.raise_for_status()
@@ -233,41 +231,20 @@ def reshape_to_lesions():
     # 9. Replace numeric values with labels for better reading
     # ---------------------------------------------------------
     # 9.1 mr_indication
-    mr_map = {
-        1: "high-risk screening",
-        2: "lesion follow-up",
-        3: "recent cancer diagnosis",
-        4: "symptoms"
-    }
     if "mr_indication_mri" in merged.columns:
-        merged["mr_indication_mri"] = merged["mr_indication_mri"].map(mr_map)
+        merged["mr_indication_mri"] = merged["mr_indication_mri"].map(MR_MAP)
 
     # 9.2 treatment_status_mri
-    mr_map = {
-        1: "pre-tx",
-        2: "post-tx",
-    }
     if "treatment_status_mri" in merged.columns:
-        merged["treatment_status_mri"] = merged["treatment_status_mri"].map(mr_map)
+        merged["treatment_status_mri"] = merged["treatment_status_mri"].map(TX_MAP)
 
     # 9.3 Replace lymph_nodes_mri
-    ln_map = {
-        1: "not biopsied",
-        2: "benign",
-        3: "malignant",
-    }
     if "lymph_nodes_mri" in merged.columns:
-        merged["lymph_nodes_mri"] = merged["lymph_nodes_mri"].map(ln_map)
+        merged["lymph_nodes_mri"] = merged["lymph_nodes_mri"].map(LN_MAP)
 
     # 9.4 Replace mr_facility_mri
-    ln_map = {
-        1: "ROPCC",
-        2: "KOP",
-        3: "ACTRI",
-        4: "Other"
-    }
     if "mr_facility_mri" in merged.columns:
-        merged["mr_facility_mri"] = merged["mr_facility_mri"].map(ln_map)
+        merged["mr_facility_mri"] = merged["mr_facility_mri"].map(MR_FACILITY_MAP)
 
     # 10. Collapse MRI type one-hot columns into a single type_mri column
     # ---------------------------------------------------------
