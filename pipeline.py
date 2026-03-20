@@ -229,7 +229,82 @@ def reshape_to_lesions():
     print(f"[debug] After date filter: {len(merged)} rows")
 
     # ---------------------------------------------------------
-    # 9. Save final lesion-centric table
+    # 9. Replace numeric values with labels for better reading
+    # ---------------------------------------------------------
+    # 9.1 mr_indication
+    mr_map = {
+        1: "high-risk screening",
+        2: "lesion follow-up",
+        3: "recent cancer diagnosis",
+        4: "symptoms"
+    }
+    if "mr_indication_mri" in merged.columns:
+        merged["mr_indication_mri"] = merged["mr_indication_mri"].map(mr_map)
+
+    # 9.2 treatment_status_mri
+    mr_map = {
+        1: "pre-tx",
+        2: "post-tx",
+    }
+    if "treatment_status_mri" in merged.columns:
+        merged["treatment_status_mri"] = merged["treatment_status_mri"].map(mr_map)
+
+    # 9.3 Replace lymph_nodes_mri
+    ln_map = {
+        1: "not biopsied",
+        2: "benign",
+        3: "malignant",
+    }
+    if "lymph_nodes_mri" in merged.columns:
+        merged["lymph_nodes_mri"] = merged["lymph_nodes_mri"].map(ln_map)
+
+    # 9.4 Replace mr_facility_mri
+    ln_map = {
+        1: "ROPCC",
+        2: "KOP",
+        3: "ACTRI",
+        4: "Other"
+    }
+    if "mr_facility_mri" in merged.columns:
+        merged["mr_facility_mri"] = merged["mr_facility_mri"].map(ln_map)
+
+    # 10. Collapse MRI type one-hot columns into a single type_mri column
+    # ---------------------------------------------------------
+
+    type_map = {
+        "type___m_mri": "mass",
+        "type___nme_mri": "nme",
+        "type___mnme_mri": "mass + nme",
+        "type___inme_mri": "intervening nme",
+        "type___iml_mri": "intramammary LN",
+        "type___nm_mri": "no-mass"
+    }
+
+    type_cols = list(type_map.keys())
+
+    def collapse_types(row):
+        active = []
+        for col, label in type_map.items():
+            if col in row and row[col] in [1, "1", True]:
+                active.append(label)
+        if not active:
+            return None
+
+        ordering = ["mass", "nme", "non-mass", "mnme", "inme", "iml"]
+        active_sorted = [t for t in ordering if t in active]
+
+        return " + ".join(active)
+
+    merged["type_mri"] = merged.apply(collapse_types, axis=1)
+    merged = merged.drop(columns=type_cols)
+    cols = merged.columns.tolist()
+
+    if "type_mri" in cols and "lesion_status" in cols:
+        cols.insert(cols.index("lesion_status") + 1, cols.pop(cols.index("type_mri")))
+        merged = merged[cols]
+
+    # ---------------------------------------------------------
+    # 11. Save final lesion-centric table
     # ---------------------------------------------------------
     os.makedirs(os.path.dirname(LESIONS_LONG_PATH), exist_ok=True)
     merged.to_csv(LESIONS_LONG_PATH, index=False)

@@ -18,7 +18,7 @@ META_COLS = [
     "mr_indication",
     "treatment_status",
     "lymph_nodes",
-    "other_mr_facility",
+    "mr_facility",
     "accession_number",
     "number_of_lesions",
     "pathology_type",
