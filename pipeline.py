@@ -2,6 +2,7 @@ import os
 import re
 import requests
 import pandas as pd
+import numpy as np 
 
 from config import (
     REDCAP_API_URL,
@@ -23,6 +24,7 @@ def download_redcap_export():
         "content": "record",
         "format": "csv",
         "type": "flat",
+        "exportDataAccessGroups": "true",
         "rawOrLabel": "raw",
         "rawOrLabelHeaders": "raw",
         "exportCheckboxLabel": "false",
@@ -38,28 +40,100 @@ def download_redcap_export():
 
 
 def reshape_to_lesions():
-    df = pd.read_csv(RAW_CSV_PATH)
 
-    # 1. Propagate anonymized_number across all visits per MRN
+    from config import META_COLS
+
+    print("\n[reshape] Starting reshape_to_lesions()")
+
+    df = pd.read_csv(RAW_CSV_PATH)
+    print(f"[debug] Raw rows: {len(df)}")
+
+    # ---------------------------------------------------------
+    # 1. Propagate anonymized_number and date_of_birth per MRN
+    # ---------------------------------------------------------
     if "mrn" in df.columns and "anonimized_number" in df.columns:
         df["anonimized_number"] = (
             df.groupby("mrn")["anonimized_number"]
               .transform(lambda x: x.ffill().bfill())
         )
 
-    long_rows = []
+    if "mrn" in df.columns and "date_of_birth" in df.columns:
+        df["date_of_birth"] = (
+            df.groupby("mrn")["date_of_birth"]
+              .transform(lambda x: x.ffill().bfill())
+        )
 
-    # 2. Build long-format lesion rows
-    for _, row in df.iterrows():
+    # ---------------------------------------------------------
+    # 2. Split MRI and pathology visits
+    # ---------------------------------------------------------
+    mri_df = df[df["mri_scan_date"].notna()].copy()
+    path_df = df[df["biopsy_date"].notna()].copy()
+
+    print(f"[debug] MRI visits: {len(mri_df)}")
+    print(f"[debug] Pathology visits: {len(path_df)}")
+
+    # ---------------------------------------------------------
+    # 3. Reshape MRI visits into long format
+    # ---------------------------------------------------------
+    mri_rows = []
+
+    for _, row in mri_df.iterrows():
+        n_lesions = row.get("number_of_lesions", 0)
+        if pd.isna(n_lesions):
+            n_lesions = 0
+
+        if n_lesions > 0:
+            for lesion_num in range(1, MAX_LESIONS + 1):
+                prefix = f"lesion{lesion_num}_"
+                lesion_cols = [c for c in mri_df.columns if c.startswith(prefix)]
+
+                if not lesion_cols:
+                    continue
+
+                lesion_data = {c: row[c] for c in lesion_cols}
+                if all(pd.isna(v) for v in lesion_data.values()):
+                    continue
+
+                lesion_clean = {
+                    re.sub(f"^{prefix}", "", k): v
+                    for k, v in lesion_data.items()
+                }
+
+                meta = {m: row.get(m) for m in META_COLS if m in row.index}
+
+                mri_rows.append({
+                    **meta,
+                    "lesion_number": lesion_num,
+                    "lesion_status": "positive",
+                    **lesion_clean
+                })
+
+        else:
+            meta = {m: row.get(m) for m in META_COLS if m in row.index}
+            mri_rows.append({
+                **meta,
+                "lesion_number": 0,
+                "lesion_status": "negative",
+            })
+
+    mri_long = pd.DataFrame(mri_rows)
+    print(f"[debug] MRI long rows: {len(mri_long)}")
+    print("[debug] MRI long columns:", mri_long.columns.tolist())
+
+    # ---------------------------------------------------------
+    # 4. Reshape pathology visits into long format
+    # ---------------------------------------------------------
+    path_rows = []
+
+    for _, row in path_df.iterrows():
         for lesion_num in range(1, MAX_LESIONS + 1):
             prefix = f"lesion{lesion_num}_"
-            lesion_cols = [c for c in df.columns if c.startswith(prefix)]
+            lesion_cols = [c for c in path_df.columns if c.startswith(prefix)]
 
             if not lesion_cols:
                 continue
 
             lesion_data = {c: row[c] for c in lesion_cols}
-
             if all(pd.isna(v) for v in lesion_data.values()):
                 continue
 
@@ -68,38 +142,100 @@ def reshape_to_lesions():
                 for k, v in lesion_data.items()
             }
 
-            meta_data = {m: row[m] for m in META_COLS if m in df.columns}
+            meta = {m: row.get(m) for m in META_COLS if m in row.index}
 
-            combined = {**meta_data, **lesion_clean}
-            combined["lesion_number"] = lesion_num
+            path_rows.append({
+                **meta,
+                "lesion_number": lesion_num,
+                **lesion_clean
+            })
 
-            long_rows.append(combined)
+    path_long = pd.DataFrame(path_rows)
+    print(f"[debug] Pathology long rows: {len(path_long)}")
+    print("[debug] Pathology long columns:", path_long.columns.tolist())
 
-    # 3. Convert to DataFrame
-    lesions_df = pd.DataFrame(long_rows)
+    # ---------------------------------------------------------
+    # 5. Merge MRI + pathology lesion tables
+    # ---------------------------------------------------------
+    merged = mri_long.merge(
+        path_long,
+        on=["anonimized_number", "lesion_number"],
+        how="outer",
+        suffixes=("_mri", "_path")
+    )
+    print(f"[debug] After merge: {len(merged)} rows")
+    print("[debug] Merged columns:", merged.columns.tolist())
 
-    # 4. Drop MRN (privacy)
-    if "mrn" in lesions_df.columns:
-        lesions_df = lesions_df.drop(columns=["mrn"])
+    # ---------------------------------------------------------
+    # 6. Remove fake positive lesions
+    # ---------------------------------------------------------
+    mri_finding_cols = [
+        c for c in merged.columns
+        if "image_finding" in c and c.endswith("_mri")
+    ]
+    print(f"[debug] MRI finding columns: {mri_finding_cols}")
 
-    # 5. Keep only events after 2023-06-23
-    if "mri_scan_date" in lesions_df.columns:
-        lesions_df["mri_scan_date"] = pd.to_datetime(lesions_df["mri_scan_date"], errors="coerce")
-        cutoff = pd.Timestamp("2023-06-23")
-        lesions_df = lesions_df[lesions_df["mri_scan_date"] > cutoff]
+    before = len(merged)
+    if mri_finding_cols:
+        merged = merged[
+            ~(
+                (merged["lesion_status"] == "positive") &
+                merged[mri_finding_cols].isna().all(axis=1)
+            )
+        ]
+    print(f"[debug] Removed {before - len(merged)} fake lesions")
 
-    # 6. Move anonimized_number to the first column
-    cols = lesions_df.columns.tolist()
-    if "anonimized_number" in cols:
-        cols.insert(0, cols.pop(cols.index("anonimized_number")))
-        lesions_df = lesions_df[cols]
+    # ---------------------------------------------------------
+    # DEBUG: Inspect raw date values BEFORE parsing
+    # ---------------------------------------------------------
+    print("\n[debug] RAW MRI date samples BEFORE parsing:")
+    print(merged["mri_scan_date_mri"].dropna().head(20).tolist())
 
-    # 7. Save final long-format table
+    print("\n[debug] RAW PATH date samples BEFORE parsing:")
+    print(merged["biopsy_date_path"].dropna().head(20).tolist())
+
+    # ---------------------------------------------------------
+    # 7. Parse dates correctly (YYYY-MM-DD)
+    # ---------------------------------------------------------
+    for col in ["mri_scan_date_mri", "biopsy_date_path"]:
+        if col in merged.columns:
+            merged[col] = pd.to_datetime(
+                merged[col],
+                format="%Y-%m-%d",
+                errors="coerce"
+            )
+
+    print("[debug] Date parsing complete")
+    print(merged[["mri_scan_date_mri", "biopsy_date_path"]].head())
+
+    # ---------------------------------------------------------
+    # 8. Date filtering
+    # ---------------------------------------------------------
+    cutoff = pd.Timestamp("2023-06-23")
+
+    before = len(merged)
+    merged = merged[
+        (
+            merged["mri_scan_date_mri"].notna() &
+            (merged["mri_scan_date_mri"] > cutoff)
+        )
+        |
+        (
+            merged["biopsy_date_path"].notna() &
+            (merged["biopsy_date_path"] > cutoff)
+        )
+    ]
+    print(f"[debug] Removed {before - len(merged)} rows by date filter")
+    print(f"[debug] After date filter: {len(merged)} rows")
+
+    # ---------------------------------------------------------
+    # 9. Save final lesion-centric table
+    # ---------------------------------------------------------
     os.makedirs(os.path.dirname(LESIONS_LONG_PATH), exist_ok=True)
-    lesions_df.to_csv(LESIONS_LONG_PATH, index=False)
+    merged.to_csv(LESIONS_LONG_PATH, index=False)
 
-    print(f"[reshape] Created {LESIONS_LONG_PATH} with {len(lesions_df)} rows")
-    return lesions_df
+    print(f"[reshape] Created {LESIONS_LONG_PATH} with {len(merged)} rows")
+    return merged
 
 
 def validate_lesions(lesions_df):
