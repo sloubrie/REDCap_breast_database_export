@@ -12,10 +12,8 @@ META_COLS = [
     "redcap_data_access_group",
     "break_the_glass",
     "anonimized_number",
-    "secondary_anonymization_id",
     "date_of_birth",
     "mri_scan_date",
-    "pathology_complete",
 ]
 
 MAX_LESIONS = 5

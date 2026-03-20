@@ -40,16 +40,16 @@ def download_redcap_export():
 def reshape_to_lesions():
     df = pd.read_csv(RAW_CSV_PATH)
 
-    # Propagate anonymized_number across all visits for each MRN
+    # 1. Propagate anonymized_number across all visits per MRN
     if "mrn" in df.columns and "anonimized_number" in df.columns:
         df["anonimized_number"] = (
             df.groupby("mrn")["anonimized_number"]
-            .transform(lambda x: x.ffill().bfill())
-    )
-
+              .transform(lambda x: x.ffill().bfill())
+        )
 
     long_rows = []
 
+    # 2. Build long-format lesion rows
     for _, row in df.iterrows():
         for lesion_num in range(1, MAX_LESIONS + 1):
             prefix = f"lesion{lesion_num}_"
@@ -64,7 +64,8 @@ def reshape_to_lesions():
                 continue
 
             lesion_clean = {
-                re.sub(f"^{prefix}", "", k): v for k, v in lesion_data.items()
+                re.sub(f"^{prefix}", "", k): v
+                for k, v in lesion_data.items()
             }
 
             meta_data = {m: row[m] for m in META_COLS if m in df.columns}
@@ -74,7 +75,26 @@ def reshape_to_lesions():
 
             long_rows.append(combined)
 
+    # 3. Convert to DataFrame
     lesions_df = pd.DataFrame(long_rows)
+
+    # 4. Drop MRN (privacy)
+    if "mrn" in lesions_df.columns:
+        lesions_df = lesions_df.drop(columns=["mrn"])
+
+    # 5. Keep only events after 2023-06-23
+    if "mri_scan_date" in lesions_df.columns:
+        lesions_df["mri_scan_date"] = pd.to_datetime(lesions_df["mri_scan_date"], errors="coerce")
+        cutoff = pd.Timestamp("2023-06-23")
+        lesions_df = lesions_df[lesions_df["mri_scan_date"] > cutoff]
+
+    # 6. Move anonimized_number to the first column
+    cols = lesions_df.columns.tolist()
+    if "anonimized_number" in cols:
+        cols.insert(0, cols.pop(cols.index("anonimized_number")))
+        lesions_df = lesions_df[cols]
+
+    # 7. Save final long-format table
     os.makedirs(os.path.dirname(LESIONS_LONG_PATH), exist_ok=True)
     lesions_df.to_csv(LESIONS_LONG_PATH, index=False)
 
