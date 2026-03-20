@@ -40,6 +40,14 @@ def download_redcap_export():
 def reshape_to_lesions():
     df = pd.read_csv(RAW_CSV_PATH)
 
+    # Propagate anonymized_number across all visits for each MRN
+    if "mrn" in df.columns and "anonimized_number" in df.columns:
+        df["anonimized_number"] = (
+            df.groupby("mrn")["anonimized_number"]
+            .transform(lambda x: x.ffill().bfill())
+    )
+
+
     long_rows = []
 
     for _, row in df.iterrows():
@@ -114,6 +122,10 @@ def main():
     download_redcap_export()
     lesions_df = reshape_to_lesions()
     validate_lesions(lesions_df)
+
+    if os.path.exists(RAW_CSV_PATH):
+        os.remove(RAW_CSV_PATH)
+        print(f"[cleanup] Deleted raw REDCap export: {RAW_CSV_PATH}")
 
 
 if __name__ == "__main__":
