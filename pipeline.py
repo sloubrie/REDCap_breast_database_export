@@ -5,7 +5,7 @@ import pandas as pd
 
 from config import (
     REDCAP_API_URL,
-    REDCAP_API_TOKEN,
+    REDCAP_TOKEN,
     RAW_CSV_PATH,
     LESIONS_LONG_PATH,
     VALIDATION_REPORT_PATH,
