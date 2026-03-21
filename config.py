@@ -37,6 +37,7 @@ META_COLS = [
     "pathology_source",
     "specimen_number",
     "pathology_text",
+    "mri_complete",
 ]
 
 COLUMNS_TO_DELETE = [
@@ -78,6 +79,7 @@ COLUMNS_TO_DELETE = [
         "side_path",
         "small_path",
         "long_path",
+        "mri_complete_path",
 ]
 
 MAX_LESIONS = 5

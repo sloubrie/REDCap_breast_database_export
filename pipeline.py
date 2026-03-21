@@ -87,7 +87,7 @@ def reshape_to_lesions() -> pd.DataFrame:
             df.groupby("mrn")["date_of_birth"]
               .transform(lambda x: x.ffill().bfill())
         )
-
+    
     # ---------------------------------------------------------
     # 3. Split MRI and pathology visits
     # ---------------------------------------------------------
