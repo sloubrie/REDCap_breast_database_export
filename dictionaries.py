@@ -36,6 +36,16 @@ MR_FACILITY_MAP = {
         "4": "Other",
     }
 
+# MRI lesion type map (one-hot → human-readable)
+TYPE_MAP = {
+        "type___m_mri": "mass",
+        "type___nme_mri": "nme",
+        "type___mnme_mri": "mass + nme",
+        "type___inme_mri": "intervening nme",
+        "type___iml_mri": "intramammary LN",
+        "type___nm_mri": "non-mass",
+    }
+
 LESION_FIELD_LABELS = {
     "distance_from_nipple": "Distance from nipple",
     "position": "Lesion position",

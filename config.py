@@ -74,6 +74,10 @@ COLUMNS_TO_DELETE = [
         "type___nm_path",
         "distance_from_nipple_path",
         "image_finding_path",
+        "position_path",
+        "side_path",
+        "small_path",
+        "long_path",
 ]
 
 MAX_LESIONS = 5
